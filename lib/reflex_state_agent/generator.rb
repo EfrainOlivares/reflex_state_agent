@@ -23,7 +23,7 @@ class AutoGen
     str_class_header = <<-CLASSHEADING.gsub(/^\s{6}/,"")
       \n
       class #{class_name} < BaseStage
-        def self.reflex(automaton, percept)
+        def self.process(#{@actor}, percept)
           case
     CLASSHEADING
   end
@@ -97,9 +97,9 @@ class AutoGen
 
       case line[0]
       when "sub"
-        file.puts "    when subset(percept#{casehits})"
+        file.puts "    when subset(percepts#{casehits})"
       when "any"
-        file.puts "    when any(percept#{casehits})"
+        file.puts "    when any(percepts#{casehits})"
       end
       file.puts action     unless action == ""
       file.puts transition unless transition == ""
