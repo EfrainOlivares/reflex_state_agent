@@ -5,11 +5,14 @@ require 'pry' # for debugging
 
 class AutoGen
   attr_accessor :path, :name, :states
-  def initialize(_path)
+  attr_accessor :selectors, :actor
+  def initialize(_path, actor="automaton")
     @path = _path
     @name = File.basename(_path)
     @states = Dir.entries(_path).select! {|e| File.extname(e) == '.csv' }
     @states.map! {|e| e.gsub('.csv', '') }
+    @selectors = ["any", "sub"]
+    @actor = actor
   end
 
   def camelize(underscore)
@@ -19,8 +22,7 @@ class AutoGen
   def class_heading(class_name)
     str_class_header = <<-CLASSHEADING.gsub(/^\s{6}/,"")
       \n
-     # #{class_name} state
-      class #{class_name} < BaseReflexAutomaton
+      class #{class_name} < BaseStage
         def self.reflex(automaton, percept)
           case
     CLASSHEADING
@@ -34,26 +36,26 @@ class AutoGen
           subset = _opts.select { |k,v| sub.keys.include? k }
           subset == sub
         end
-
+      
         def self.any(_opts, matches)
           matches.each do |key, _|
             return true if _opts[key] == matches[key]
           end
           false
         end
-
+      
         def self.process(test, percepts)
           raise "Base processing default should never be called"
         end
-
+      
         def self.transition(test, stage)
           puts "TRANSITION: #\{self\} => #\{stage\}".fg 'green'
-          test.stage = stage
+          #{@actor}.stage = stage
         end
-
+      
         def self.action(test, action)
           puts "ACTION: #\{self\} stage, calling test.#\{action\}".fg 'green'
-          test.send(action)
+          #{@actor}.send(action)
         end
       end
     BASECLASS
@@ -79,17 +81,26 @@ class AutoGen
       transition = ""
 
       header.each_with_index do |trigger, idx|
+        row_item = line[idx].strip
+        trigger.strip!
         case trigger
         when /action/
-          action = "      automaton.#{line[idx]}"
+          action = (row_item == "-") ? "" : "      #{@actor}.#{row_item}"
         when "transition"
-          transition = (line[idx] == "-") ? "" : "      automaton.transition(#{line[idx]})"
+          transition = (row_item == "-") ? "" : "      transition(#{@actor}, #{row_item})"
         else
-          casehits += ", #{trigger}: \"#{line[idx]}\"" unless line[idx] == "-"
+          unless @selectors.include? row_item 
+            casehits += ", #{trigger}: \"#{row_item}\"" unless row_item == "-"
+          end
         end
       end
 
-      file.puts "    when subset(percept#{casehits})"
+      case line[0]
+      when "sub"
+        file.puts "    when subset(percept#{casehits})"
+      when "any"
+        file.puts "    when any(percept#{casehits})"
+      end
       file.puts action     unless action == ""
       file.puts transition unless transition == ""
     end
